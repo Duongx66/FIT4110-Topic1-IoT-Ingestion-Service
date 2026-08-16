@@ -1,0 +1,519 @@
+openapi: 3.1.0
+info:
+  title: Smart Campus — IoT Ingestion Service Contract
+  version: 1.0.0
+  description: |
+    Hợp đồng API và event contract cho IoT Ingestion Service.
+    File này mô tả payload và endpoint publish sensor events cho Core Business.
+  contact:
+    name: FIT4110 Teaching Team
+    email: fit4110@example.edu.vn
+servers:
+  - url: http://localhost:4010
+    description: Prism mock server
+  - url: https://api.campus.local
+    description: Class network placeholder
+tags:
+  - name: health
+    description: Kiểm tra trạng thái service
+  - name: iot
+    description: IoT Ingestion và sensor event contract
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      operationId: getHealth
+      summary: Kiểm tra trạng thái service
+      description: Endpoint kiểm tra service còn hoạt động.
+      tags: [health]
+      security: []
+      responses:
+        '200':
+          description: Service đang hoạt động
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+              examples:
+                ok:
+                  value:
+                    status: ok
+                    service: iot-ingestion-service
+                    time: '2026-05-10T08:00:00Z'
+
+  /sensor-events:
+    post:
+      operationId: publishSensorEvent
+      summary: IoT Ingestion gửi sensor event đến Core Business
+      description: |
+        Endpoint REST sync để IoT Ingestion gửi dữ liệu cảm biến hoặc cảnh báo vượt ngưỡng lên Core Business.
+      tags: [iot]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IoTEvent'
+            examples:
+              sensorReadingEvent:
+                value:
+                  eventType: sensor.reading.created
+                  eventId: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+                  occurredAt: '2026-08-11T12:00:00Z'
+                  correlationId: 5f8d9abc-1234-4d5e-9f01-23456789abcd
+                  source: iot-ingestion
+                  deviceId: SENSOR-001
+                  metric: temperature
+                  value: 38.5
+                  unit: celsius
+                  timestamp: '2026-08-11T11:59:58Z'
+                  locationId: LOC-01
+              thresholdExceededEvent:
+                value:
+                  eventType: sensor.threshold.exceeded
+                  eventId: 3c2b7d9f-5678-4c4d-8a0f-123456789abc
+                  occurredAt: '2026-08-11T12:05:00Z'
+                  correlationId: 7d3f1e2a-1234-4d5e-9f01-23456789abcd
+                  source: iot-ingestion
+                  deviceId: SENSOR-002
+                  metric: smoke
+                  value: 120.0
+                  unit: ppm
+                  threshold: 100.0
+                  timestamp: '2026-08-11T12:04:58Z'
+                  locationId: LOC-02
+      responses:
+        '202':
+          description: Event accepted for processing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EventAccepted'
+              examples:
+                accepted:
+                  value:
+                    eventId: 3c2b7d9f-5678-4c4d-8a0f-123456789abc
+                    acceptedAt: '2026-08-11T12:05:01Z'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+  /sensor-events/{eventId}:
+    get:
+      operationId: getSensorEventById
+      summary: Lấy sensor event theo eventId
+      description: Lấy lại chi tiết sensor event đã được gửi trước đó.
+      tags: [iot]
+      parameters:
+        - $ref: '#/components/parameters/SensorEventId'
+      responses:
+        '200':
+          description: Chi tiết sensor event
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IoTEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /sensor-events/recent:
+    get:
+      operationId: listRecentSensorEvents
+      summary: Lấy sensor events gần đây
+      description: Lấy danh sách event cảm biến theo thời gian và bộ lọc sensorType.
+      tags: [iot]
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: metric
+          in: query
+          required: false
+          description: Lọc theo loại chỉ số telemetry.
+          schema:
+            type: string
+            enum: [temperature, humidity, smoke, motion]
+        - name: from
+          in: query
+          required: false
+          description: Bắt đầu lấy event từ thời điểm này.
+          schema:
+            type: string
+            format: date-time
+        - name: to
+          in: query
+          required: false
+          description: Kết thúc lấy event tới thời điểm này.
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Danh sách sensor events
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SensorEventPage'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    SensorEventId:
+      name: eventId
+      in: path
+      required: true
+      description: UUID của sensor event.
+      schema:
+        type: string
+        format: uuid
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Cursor dùng để lấy trang tiếp theo.
+      schema:
+        type: [string, 'null']
+        minLength: 1
+        maxLength: 200
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Số item tối đa mỗi trang.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  schemas:
+    HealthStatus:
+      type: object
+      additionalProperties: false
+      required: [status, service, time]
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          description: Trạng thái service.
+          example: ok
+        service:
+          type: string
+          minLength: 2
+          maxLength: 80
+          description: Tên service.
+          example: iot-ingestion-service
+        time:
+          type: string
+          format: date-time
+          description: Thời điểm kiểm tra.
+          example: '2026-05-10T08:00:00Z'
+
+    SensorEventPage:
+      type: object
+      additionalProperties: false
+      required: [items, nextCursor, hasMore]
+      properties:
+        items:
+          type: array
+          minItems: 0
+          maxItems: 100
+          items:
+            $ref: '#/components/schemas/IoTEvent'
+        nextCursor:
+          type: [string, 'null']
+          description: Cursor trang tiếp theo, null nếu hết dữ liệu.
+          example: null
+        hasMore:
+          type: boolean
+          description: Còn dữ liệu ở trang sau hay không.
+          example: false
+
+    IoTEvent:
+      oneOf:
+        - $ref: '#/components/schemas/SensorReadingEvent'
+        - $ref: '#/components/schemas/ThresholdExceededEvent'
+      discriminator:
+        propertyName: eventType
+        mapping:
+          sensor.reading.created: '#/components/schemas/SensorReadingEvent'
+          sensor.threshold.exceeded: '#/components/schemas/ThresholdExceededEvent'
+
+    SensorReadingEvent:
+      type: object
+      additionalProperties: false
+      required: [eventType, eventId, deviceId, metric, value, unit, occurredAt, source, locationId]
+      properties:
+        eventType:
+          type: string
+          const: sensor.reading.created
+          description: Loại event.
+          example: sensor.reading.created
+        eventId:
+          type: string
+          format: uuid
+          description: UUID của event.
+          example: 0196fb3d-4ad7-7d1e-9f49-5d5148d2babc
+        occurredAt:
+          type: string
+          format: date-time
+          description: Thời điểm event được publish.
+          example: '2026-08-11T12:00:00Z'
+        correlationId:
+          type: [string, 'null']
+          format: uuid
+          description: UUID trace workflow.
+          example: 5f8d9abc-1234-4d5e-9f01-23456789abcd
+        source:
+          type: string
+          minLength: 2
+          maxLength: 80
+          description: Tên service producer.
+          example: iot-ingestion
+        deviceId:
+          type: string
+          pattern: '^SENSOR-[0-9]{3}$'
+          description: Mã thiết bị cảm biến.
+          example: SENSOR-001
+        metric:
+          type: string
+          enum: [temperature, humidity, smoke, motion]
+          description: Loại chỉ số cảm biến.
+          example: temperature
+        value:
+          type: number
+          minimum: -100
+          maximum: 1000
+          description: Giá trị đo được.
+          example: 38.5
+        unit:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: Đơn vị đo.
+          example: celsius
+        timestamp:
+          type: [string, 'null']
+          format: date-time
+          description: Thời điểm cảm biến đo.
+          example: '2026-08-11T11:59:58Z'
+        locationId:
+          type: string
+          description: Mã vị trí thiết bị.
+          example: LOC-01
+
+    ThresholdExceededEvent:
+      type: object
+      additionalProperties: false
+      required: [eventType, eventId, deviceId, metric, value, unit, threshold, occurredAt, source, locationId]
+      properties:
+        eventType:
+          type: string
+          const: sensor.threshold.exceeded
+          description: Loại event.
+          example: sensor.threshold.exceeded
+        eventId:
+          type: string
+          format: uuid
+          description: UUID của event.
+          example: 3c2b7d9f-5678-4c4d-8a0f-123456789abc
+        occurredAt:
+          type: string
+          format: date-time
+          description: Thời điểm event được publish.
+          example: '2026-08-11T12:05:00Z'
+        correlationId:
+          type: [string, 'null']
+          format: uuid
+          description: UUID trace workflow.
+          example: 7d3f1e2a-1234-4d5e-9f01-23456789abcd
+        source:
+          type: string
+          minLength: 2
+          maxLength: 80
+          description: Tên service producer.
+          example: iot-ingestion
+        deviceId:
+          type: string
+          pattern: '^SENSOR-[0-9]{3}$'
+          description: Mã thiết bị cảm biến.
+          example: SENSOR-002
+        metric:
+          type: string
+          enum: [temperature, humidity, smoke, motion]
+          description: Loại chỉ số cảm biến.
+          example: smoke
+        value:
+          type: number
+          minimum: -100
+          maximum: 1000
+          description: Giá trị đo được.
+          example: 120.0
+        unit:
+          type: string
+          minLength: 1
+          maxLength: 20
+          description: Đơn vị đo.
+          example: ppm
+        threshold:
+          type: number
+          description: Mức ngưỡng đã vượt.
+          example: 100.0
+        timestamp:
+          type: [string, 'null']
+          format: date-time
+          description: Thời điểm cảm biến đo.
+          example: '2026-08-11T12:04:58Z'
+        locationId:
+          type: string
+          description: Mã vị trí thiết bị.
+          example: LOC-02
+
+    EventAccepted:
+      type: object
+      additionalProperties: false
+      required: [eventId, acceptedAt]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+          description: UUID của event được nhận.
+        acceptedAt:
+          type: string
+          format: date-time
+          description: Thời điểm hệ thống ghi nhận event.
+
+    Problem:
+      type: object
+      additionalProperties: false
+      required: [type, title, status]
+      properties:
+        type:
+          type: string
+          format: uri
+          description: URI định danh loại lỗi.
+          example: https://campus.local/errors/validation
+        title:
+          type: string
+          minLength: 3
+          maxLength: 120
+          description: Tiêu đề lỗi ngắn gọn.
+          example: Dữ liệu không hợp lệ
+        status:
+          type: integer
+          minimum: 400
+          maximum: 599
+          description: HTTP status code.
+          example: 400
+        detail:
+          type: [string, 'null']
+          maxLength: 500
+          description: Mô tả chi tiết lỗi.
+          example: eventType không nằm trong danh sách cho phép
+        instance:
+          type: [string, 'null']
+          format: uri
+          description: URI của request gây lỗi.
+          example: https://campus.local/sensor-events
+        errors:
+          type: array
+          minItems: 0
+          maxItems: 50
+          items:
+            type: object
+            additionalProperties: false
+            required: [field, code, message]
+            properties:
+              field:
+                type: string
+                minLength: 1
+                maxLength: 80
+                example: eventType
+              code:
+                type: string
+                minLength: 2
+                maxLength: 80
+                example: ENUM_MISMATCH
+              message:
+                type: string
+                minLength: 3
+                maxLength: 200
+                example: eventType không nằm trong danh sách cho phép
+
+  responses:
+    BadRequest:
+      description: Dữ liệu sai định dạng
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://campus.local/errors/validation
+            title: Dữ liệu không hợp lệ
+            status: 400
+            detail: Payload không đúng JSON Schema
+            instance: https://campus.local/sensor-events
+            errors:
+              - field: eventType
+                code: ENUM_MISMATCH
+                message: eventType không nằm trong danh sách cho phép
+
+    Unauthorized:
+      description: Thiếu hoặc sai thông tin xác thực
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          example:
+            type: https://campus.local/errors/unauthorized
+            title: Chưa xác thực
+            status: 401
+            detail: Thiếu Bearer token
+            instance: https://campus.local/sensor-events
+            errors: []
+
+    NotFound:
+      description: Resource không tồn tại
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Conflict:
+      description: Xung đột nghiệp vụ hoặc trùng idempotency key
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    UnprocessableEntity:
+      description: Payload đúng định dạng nhưng không hợp lệ về nghiệp vụ
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    InternalServerError:
+      description: Lỗi không mong muốn phía server
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'

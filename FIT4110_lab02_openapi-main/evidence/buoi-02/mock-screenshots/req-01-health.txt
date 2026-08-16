@@ -1,0 +1,14 @@
+REQUEST 1: GET /health
+HTTP/1.1 200 OK
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: *
+Content-type: application/json
+Content-Length: 79
+Date: Tue, 11 Aug 2026 02:59:55 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"status":"ok","service":"iot-ingestion-service","time":"2026-05-10T08:00:00Z"}
+

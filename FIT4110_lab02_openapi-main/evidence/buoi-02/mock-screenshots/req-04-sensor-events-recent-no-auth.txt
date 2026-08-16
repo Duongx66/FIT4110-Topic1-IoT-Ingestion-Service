@@ -1,0 +1,15 @@
+REQUEST 4: GET /sensor-events/recent without Authorization
+HTTP/1.1 401 Unauthorized
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: *
+sl-violations: [{"location":["request"],"severity":"Error","code":401,"message":"Invalid security scheme used"}]
+Content-type: application/problem+json
+Content-Length: 184
+Date: Tue, 11 Aug 2026 02:59:56 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"type":"https://campus.local/errors/unauthorized","title":"Ch¶¶a x+Ìc thﬂ+¶c","status":401,"detail":"Thiﬂ¶+u Bearer token","instance":"https://campus.local/sensor-events","errors":[]}
+

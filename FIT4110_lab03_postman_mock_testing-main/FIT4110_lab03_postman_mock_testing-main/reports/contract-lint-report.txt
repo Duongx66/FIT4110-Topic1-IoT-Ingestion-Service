@@ -1,0 +1,6 @@
+﻿Spectral validation: PASS
+Target: contracts/*.yaml
+Errors: 0
+Warnings: 0
+Validated on: 2026-08-13
+Evidence: Newman mock run passed with 7 requests, 11 assertions, 0 failed.

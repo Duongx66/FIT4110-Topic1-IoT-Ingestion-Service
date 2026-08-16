@@ -1,0 +1,14 @@
+REQUEST 5: POST /sensor-events invalid payload
+HTTP/1.1 400 Bad Request
+Access-Control-Allow-Origin: *
+Access-Control-Allow-Headers: *
+Access-Control-Allow-Credentials: true
+Access-Control-Expose-Headers: *
+Content-Type: application/json; charset=utf-8
+Content-Length: 58
+Date: Tue, 11 Aug 2026 02:59:56 GMT
+Connection: keep-alive
+Keep-Alive: timeout=5
+
+{"error":{"code":"invalid_json","message":"Invalid JSON"}}
+

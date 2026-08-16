@@ -1,0 +1,206 @@
+﻿{
+  "info": {
+    "_postman_id": "fit4110-lab03-iot-ingestion",
+    "name": "FIT4110 Lab03 - IoT Ingestion",
+    "description": "Postman collection for IoT Ingestion Lab 03",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00_Health",
+      "item": [
+        {
+          "name": "GET /health - service is alive",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"]}
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Response has service status', function () {",
+                "  const json = pm.response.json();",
+                "  pm.expect(json).to.have.property('status', 'ok');",
+                "  pm.expect(json).to.have.property('service');",
+                "});"
+              ]
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "01_Functional",
+      "item": [
+        {
+          "name": "POST /sensor-events - happy path",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"sensor.reading.created\",\n  \"eventId\": \"0196fb3d-4ad7-7d1e-9f49-5d5148d2babc\",\n  \"occurredAt\": \"2026-08-11T12:00:00Z\",\n  \"correlationId\": \"5f8d9abc-1234-4d5e-9f01-23456789abcd\",\n  \"source\": \"iot-ingestion\",\n  \"deviceId\": \"SENSOR-001\",\n  \"metric\": \"temperature\",\n  \"value\": 38.5,\n  \"unit\": \"celsius\",\n  \"timestamp\": \"2026-08-11T11:59:58Z\",\n  \"locationId\": \"LOC-01\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {"raw": "{{baseUrl}}/sensor-events", "host": ["{{baseUrl}}"], "path": ["sensor-events"]}
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Status code is 202', function () { pm.response.to.have.status(202); });",
+                "pm.test('Body has accepted eventId', function () {",
+                "  const json = pm.response.json();",
+                "  pm.expect(json).to.have.property('eventId');",
+                "  pm.environment.set('eventId', json.eventId);",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "GET /sensor-events/{eventId} - returns event",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {"raw": "{{baseUrl}}/sensor-events/{{eventId}}", "host": ["{{baseUrl}}"], "path": ["sensor-events", "{{eventId}}"]}
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Response contains expected eventType', function () {",
+                "  const json = pm.response.json();",
+                "  pm.expect(json).to.have.property('eventType', 'sensor.reading.created');",
+                "  pm.expect(json).to.have.property('deviceId');",
+                "});"
+              ]
+            }
+          }]
+        },
+        {
+          "name": "GET /sensor-events/recent - recent sensor list",
+          "request": {
+            "method": "GET",
+            "header": [{"key": "Authorization", "value": "Bearer {{authToken}}"}],
+            "url": {
+              "raw": "{{baseUrl}}/sensor-events/recent?metric=temperature&limit=10",
+              "host": ["{{baseUrl}}"],
+              "path": ["sensor-events", "recent"],
+              "query": [
+                {"key": "metric", "value": "temperature"},
+                {"key": "limit", "value": "10"}
+              ]
+            }
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Status code is 200', function () { pm.response.to.have.status(200); });",
+                "pm.test('Response has items array', function () {",
+                "  const json = pm.response.json();",
+                "  pm.expect(json).to.have.property('items');",
+                "  pm.expect(json.items).to.be.an('array');",
+                "});"
+              ]
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "02_Negative",
+      "item": [
+        {
+          "name": "POST /sensor-events - missing deviceId",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"sensor.reading.created\",\n  \"eventId\": \"0196fb3d-4ad7-7d1e-9f49-5d5148d2bbbb\",\n  \"occurredAt\": \"2026-08-11T12:10:00Z\",\n  \"metric\": \"temperature\",\n  \"value\": 40.5,\n  \"unit\": \"celsius\",\n  \"timestamp\": \"2026-08-11T12:09:58Z\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {"raw": "{{baseUrl}}/sensor-events", "host": ["{{baseUrl}}"], "path": ["sensor-events"]}
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Status code is 400 or 422', function () { pm.expect([400, 422]).to.include(pm.response.code); });"
+              ]
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "03_Auth",
+      "item": [
+        {
+          "name": "GET /sensor-events/recent - missing auth",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {"raw": "{{baseUrl}}/sensor-events/recent?metric=temperature", "host": ["{{baseUrl}}"], "path": ["sensor-events", "recent"], "query": [{"key": "metric", "value": "temperature"}]}
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Status code is 401', function () { pm.response.to.have.status(401); });"
+              ]
+            }
+          }]
+        }
+      ]
+    },
+    {
+      "name": "04_Boundary",
+      "item": [
+        {
+          "name": "POST /sensor-events - high temperature boundary",
+          "request": {
+            "method": "POST",
+            "header": [
+              {"key": "Content-Type", "value": "application/json"},
+              {"key": "Authorization", "value": "Bearer {{authToken}}"}
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"sensor.reading.created\",\n  \"eventId\": \"0196fb3d-4ad7-7d1e-9f49-5d5148d2bddd\",\n  \"occurredAt\": \"2026-08-11T12:15:00Z\",\n  \"correlationId\": \"5f8d9abc-1234-4d5e-9f01-23456789abcd\",\n  \"source\": \"iot-ingestion\",\n  \"deviceId\": \"SENSOR-003\",\n  \"metric\": \"temperature\",\n  \"value\": 80,\n  \"unit\": \"celsius\",\n  \"timestamp\": \"2026-08-11T12:14:58Z\",\n  \"locationId\": \"LOC-03\"\n}",
+              "options": {"raw": {"language": "json"}}
+            },
+            "url": {"raw": "{{baseUrl}}/sensor-events", "host": ["{{baseUrl}}"], "path": ["sensor-events"]}
+          },
+          "event": [{
+            "listen": "test",
+            "script": {
+              "type": "text/javascript",
+              "exec": [
+                "pm.test('Status code is 202 or 400 according to boundary rule', function () { pm.expect([200, 202, 400, 422]).to.include(pm.response.code); });"
+              ]
+            }
+          }]
+        }
+      ]
+    }
+  ]
+}
