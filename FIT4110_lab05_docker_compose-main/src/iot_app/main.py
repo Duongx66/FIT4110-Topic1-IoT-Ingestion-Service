@@ -180,6 +180,13 @@ def load_device_registry() -> Dict[str, Dict[str, str]]:
 DEVICE_REGISTRY = load_device_registry()
 
 
+def core_device_id(device_id: str) -> Optional[str]:
+    registered_ids = sorted(DEVICE_REGISTRY)
+    if device_id not in DEVICE_REGISTRY:
+        return None
+    return f"SENSOR-{registered_ids.index(device_id) + 1:03d}"
+
+
 def on_mqtt_connect(client: mqtt.Client, userdata: object, flags: dict, reason_code: object, properties: object = None) -> None:
     global MQTT_STATUS
     if reason_code == 0:
@@ -252,6 +259,12 @@ def send_to_core(sample: RawEnvironmentSample) -> None:
         CORE_STATUS = "missing_configuration"
         return
 
+    device_id = core_device_id(sample.device_id)
+    if device_id is None:
+        CORE_STATUS = "skipped_invalid_device"
+        print(f"Core delivery skipped for unregistered device {sample.device_id}", flush=True)
+        return
+
     metric_values = [
         ("temperature", sample.temperature_c, "celsius"),
         ("humidity", sample.humidity_percent, "percent"),
@@ -265,13 +278,18 @@ def send_to_core(sample: RawEnvironmentSample) -> None:
         CORE_STATUS = "skipped_no_numeric_metric"
         return
 
+    normalized = classify_sample(sample)
     core_event = {
-        "eventType": "sensor.reading.created",
+        "eventType": (
+            "sensor.threshold.exceeded"
+            if normalized["status"] in ("warning", "danger")
+            else "sensor.reading.created"
+        ),
         "eventId": str(uuid.uuid4()),
         "occurredAt": sample.timestamp,
         "correlationId": str(uuid.uuid4()),
         "source": "iot-ingestion",
-        "deviceId": sample.device_id,
+        "deviceId": device_id,
         "metric": metric,
         "value": value,
         "unit": unit,
