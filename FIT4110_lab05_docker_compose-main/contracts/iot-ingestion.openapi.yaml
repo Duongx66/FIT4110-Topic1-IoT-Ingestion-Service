@@ -47,6 +47,7 @@ paths:
                     mqtt_status: connected
                     analytics_status: connected
                     core_status: connected
+                    core_async_status: connected
 
   /ingest/raw:
     post:
@@ -434,7 +435,7 @@ components:
 
     HealthResponse:
       type: object
-      required: [status, service, version, mqtt_status, analytics_status, core_status]
+      required: [status, service, version, mqtt_status, analytics_status, core_status, core_async_status]
       properties:
         status:
           type: string
@@ -453,6 +454,9 @@ components:
           type: string
           example: connected
         core_status:
+          type: string
+          example: connected
+        core_async_status:
           type: string
           example: connected
 

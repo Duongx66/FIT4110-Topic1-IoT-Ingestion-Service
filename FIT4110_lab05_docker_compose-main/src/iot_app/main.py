@@ -37,13 +37,20 @@ ANALYTICS_HOST = os.getenv("ANALYTICS_HOST", "")
 ANALYTICS_PORT = int(os.getenv("ANALYTICS_PORT", "1883"))
 ANALYTICS_TOPIC = os.getenv("ANALYTICS_TOPIC", "iot.telemetry")
 ANALYTICS_CLIENT_ID = os.getenv("ANALYTICS_CLIENT_ID", "iot-ingestion-analytics")
+CORE_ASYNC_ENABLED = os.getenv("CORE_ASYNC_ENABLED", "false").lower() == "true"
+CORE_MQTT_HOST = os.getenv("CORE_MQTT_HOST", "")
+CORE_MQTT_PORT = int(os.getenv("CORE_MQTT_PORT", "1883"))
+CORE_MQTT_TOPIC = os.getenv("CORE_MQTT_TOPIC", "campus.sensors")
+CORE_MQTT_CLIENT_ID = os.getenv("CORE_MQTT_CLIENT_ID", "iot-ingestion-core")
 CORE_EVENTS_URL = os.getenv("CORE_EVENTS_URL", "")
 CORE_ENABLED = os.getenv("CORE_ENABLED", "false").lower() == "true"
 MQTT_STATUS = "disabled"
 ANALYTICS_STATUS = "disabled"
 CORE_STATUS = "disabled"
+CORE_ASYNC_STATUS = "disabled"
 MQTT_CLIENT: Optional[mqtt.Client] = None
 ANALYTICS_CLIENT: Optional[mqtt.Client] = None
+CORE_MQTT_CLIENT: Optional[mqtt.Client] = None
 DEVICE_LAST_STATUS: Dict[str, str] = {}
 
 
@@ -90,6 +97,7 @@ class HealthResponse(BaseModel):
     mqtt_status: str
     analytics_status: str
     core_status: str
+    core_async_status: str
 
 
 class SensorReadingCreate(BaseModel):
@@ -220,6 +228,7 @@ def on_mqtt_message(client: mqtt.Client, userdata: object, message: mqtt.MQTTMes
         EVENTS.append(normalized)
         client.publish(MQTT_OUTPUT_TOPIC, json.dumps(normalized), qos=1)
         send_to_analytics(sample, normalized)
+        publish_core_async(sample, normalized)
         send_to_core(sample)
         print(f"MQTT processed event {sample.event_id}", flush=True)
     except Exception as error:
@@ -260,6 +269,8 @@ def stop_mqtt() -> None:
         MQTT_CLIENT.disconnect()
     if ANALYTICS_CLIENT is not None:
         ANALYTICS_CLIENT.disconnect()
+    if CORE_MQTT_CLIENT is not None:
+        CORE_MQTT_CLIENT.disconnect()
 
 
 def analytics_zone(sample: RawEnvironmentSample) -> str:
@@ -334,6 +345,75 @@ def send_to_analytics(sample: RawEnvironmentSample, normalized: Dict[str, object
         }
         ANALYTICS_CLIENT.publish(ANALYTICS_TOPIC, json.dumps(status_event), qos=1)
     DEVICE_LAST_STATUS[device_id] = current_status
+
+
+def publish_core_async(sample: RawEnvironmentSample, normalized: Dict[str, object]) -> None:
+    global CORE_ASYNC_STATUS
+    if not CORE_ASYNC_ENABLED or CORE_MQTT_CLIENT is None:
+        return
+    device_id = core_device_id(sample.device_id)
+    if device_id is None:
+        return
+    metric_values = [
+        ("temperature", sample.temperature_c, "celsius"),
+        ("humidity", sample.humidity_percent, "percent"),
+        ("smoke", sample.smoke_ppm, "ppm"),
+        ("motion", float(sample.motion_detected), "boolean"),
+    ]
+    metric, value, unit = next(
+        ((name, value, unit) for name, value, unit in metric_values if value is not None),
+        (None, None, None),
+    )
+    if metric is None:
+        return
+    event = {
+        "eventId": str(uuid.uuid4()),
+        "eventType": (
+            "sensor.threshold.exceeded"
+            if normalized["status"] in ("warning", "danger")
+            else "sensor.reading.created"
+        ),
+        "occurredAt": sample.timestamp,
+        "correlationId": str(uuid.uuid4()),
+        "source": "iot-ingestion",
+        "data": {
+            "deviceId": device_id,
+            "metric": metric,
+            "value": value,
+            "unit": unit,
+            "locationId": sample.location or DEVICE_REGISTRY.get(sample.device_id, {}).get("location"),
+        },
+    }
+    for attempt in range(3):
+        result = CORE_MQTT_CLIENT.publish(CORE_MQTT_TOPIC, json.dumps(event), qos=1)
+        if result.rc == mqtt.MQTT_ERR_SUCCESS:
+            CORE_ASYNC_STATUS = "connected"
+            print(f"Core async event published: {event['eventId']} topic={CORE_MQTT_TOPIC}", flush=True)
+            return
+        if attempt < 2:
+            threading.Event().wait(2)
+    CORE_ASYNC_STATUS = "publish_failed"
+    print(f"Core async publish failed after 3 attempts: {event['eventId']}", flush=True)
+
+
+def start_core_async() -> None:
+    global CORE_MQTT_CLIENT, CORE_ASYNC_STATUS
+    if not CORE_ASYNC_ENABLED or not CORE_MQTT_HOST:
+        return
+    CORE_MQTT_CLIENT = mqtt.Client(
+        mqtt.CallbackAPIVersion.VERSION2,
+        client_id=CORE_MQTT_CLIENT_ID,
+        protocol=mqtt.MQTTv5,
+    )
+    try:
+        CORE_MQTT_CLIENT.connect(CORE_MQTT_HOST, CORE_MQTT_PORT, keepalive=60)
+        CORE_MQTT_CLIENT.loop_start()
+        CORE_ASYNC_STATUS = "connected"
+        print(f"Core async MQTT connected: {CORE_MQTT_HOST}:{CORE_MQTT_PORT}; topic={CORE_MQTT_TOPIC}", flush=True)
+    except Exception as error:
+        CORE_ASYNC_STATUS = f"connection_error:{type(error).__name__}"
+        CORE_MQTT_CLIENT = None
+        print(f"Core async MQTT connection failed: {error}", flush=True)
 
 
 def start_analytics() -> None:
@@ -420,6 +500,7 @@ def send_to_core(sample: RawEnvironmentSample) -> None:
 def mqtt_startup() -> None:
     start_mqtt()
     start_analytics()
+    start_core_async()
 
 
 @app.on_event("shutdown")
@@ -594,6 +675,7 @@ def health() -> HealthResponse:
         mqtt_status=MQTT_STATUS,
         analytics_status=ANALYTICS_STATUS,
         core_status=CORE_STATUS,
+        core_async_status=CORE_ASYNC_STATUS,
     )
 
 
