@@ -1,5 +1,7 @@
 import csv
+import json
 import os
+import threading
 from pathlib import Path
 from datetime import datetime, timezone
 from enum import Enum
@@ -10,11 +12,26 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Res
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+import paho.mqtt.client as mqtt
 
 # Đọc biến môi trường với giá trị mặc định
 SERVICE_NAME = os.getenv("SERVICE_NAME", "iot-ingestion")
 SERVICE_VERSION = os.getenv("SERVICE_VERSION", "0.5.0")
 AUTH_TOKEN = os.getenv("AUTH_TOKEN", "local-dev-token")
+MQTT_ENABLED = os.getenv("MQTT_ENABLED", "false").lower() == "true"
+MQTT_HOST = os.getenv("MQTT_HOST", "")
+MQTT_PORT = int(os.getenv("MQTT_PORT", "8883"))
+MQTT_USERNAME = os.getenv("MQTT_USERNAME", "")
+MQTT_PASSWORD = os.getenv("MQTT_PASSWORD", "")
+MQTT_INPUT_TOPIC = os.getenv(
+    "MQTT_INPUT_TOPIC", "smart-campus/raw/iot/environment"
+)
+MQTT_OUTPUT_TOPIC = os.getenv(
+    "MQTT_OUTPUT_TOPIC", "smart-campus/events/sensor"
+)
+MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "iot-ingestion-lab05")
+MQTT_STATUS = "disabled"
+MQTT_CLIENT: Optional[mqtt.Client] = None
 
 
 app = FastAPI(
@@ -57,6 +74,7 @@ class HealthResponse(BaseModel):
     status: str
     service: str
     version: str
+    mqtt_status: str
 
 
 class SensorReadingCreate(BaseModel):
@@ -154,6 +172,78 @@ def load_device_registry() -> Dict[str, Dict[str, str]]:
 
 
 DEVICE_REGISTRY = load_device_registry()
+
+
+def on_mqtt_connect(client: mqtt.Client, userdata: object, flags: dict, reason_code: object, properties: object = None) -> None:
+    global MQTT_STATUS
+    if reason_code == 0:
+        MQTT_STATUS = "connected"
+        client.subscribe(MQTT_INPUT_TOPIC, qos=1)
+        print(f"MQTT connected; subscribed to {MQTT_INPUT_TOPIC}", flush=True)
+    else:
+        MQTT_STATUS = f"connect_failed:{reason_code}"
+
+
+def on_mqtt_disconnect(client: mqtt.Client, userdata: object, disconnect_flags: object, reason_code: object, properties: object = None) -> None:
+    global MQTT_STATUS
+    MQTT_STATUS = "disconnected"
+    print(f"MQTT disconnected: {reason_code}", flush=True)
+
+
+def on_mqtt_message(client: mqtt.Client, userdata: object, message: mqtt.MQTTMessage) -> None:
+    try:
+        sample = RawEnvironmentSample.model_validate(json.loads(message.payload))
+        normalized = classify_sample(sample)
+        RAW_EVENTS.append(sample.model_dump())
+        EVENTS.append(normalized)
+        client.publish(MQTT_OUTPUT_TOPIC, json.dumps(normalized), qos=1)
+        print(f"MQTT processed event {sample.event_id}", flush=True)
+    except Exception as error:
+        print(f"MQTT rejected message: {error}", flush=True)
+
+
+def start_mqtt() -> None:
+    global MQTT_CLIENT, MQTT_STATUS
+    if not MQTT_ENABLED:
+        MQTT_STATUS = "disabled"
+        return
+    if not MQTT_HOST or not MQTT_USERNAME or not MQTT_PASSWORD:
+        MQTT_STATUS = "missing_configuration"
+        print("MQTT enabled but configuration is incomplete", flush=True)
+        return
+
+    MQTT_CLIENT = mqtt.Client(
+        mqtt.CallbackAPIVersion.VERSION2,
+        client_id=MQTT_CLIENT_ID,
+        protocol=mqtt.MQTTv5,
+    )
+    MQTT_CLIENT.username_pw_set(MQTT_USERNAME, MQTT_PASSWORD)
+    MQTT_CLIENT.tls_set()
+    MQTT_CLIENT.on_connect = on_mqtt_connect
+    MQTT_CLIENT.on_disconnect = on_mqtt_disconnect
+    MQTT_CLIENT.on_message = on_mqtt_message
+    try:
+        MQTT_STATUS = "connecting"
+        MQTT_CLIENT.connect(MQTT_HOST, MQTT_PORT, keepalive=60)
+        threading.Thread(target=MQTT_CLIENT.loop_forever, daemon=True).start()
+    except Exception as error:
+        MQTT_STATUS = f"connection_error:{type(error).__name__}"
+        print(f"MQTT connection failed: {error}", flush=True)
+
+
+def stop_mqtt() -> None:
+    if MQTT_CLIENT is not None:
+        MQTT_CLIENT.disconnect()
+
+
+@app.on_event("startup")
+def mqtt_startup() -> None:
+    start_mqtt()
+
+
+@app.on_event("shutdown")
+def mqtt_shutdown() -> None:
+    stop_mqtt()
 
 
 def classify_sample(sample: RawEnvironmentSample) -> Dict[str, object]:
@@ -320,6 +410,7 @@ def health() -> HealthResponse:
         status="ok",
         service=SERVICE_NAME,
         version=SERVICE_VERSION,
+        mqtt_status=MQTT_STATUS,
     )
 
 
