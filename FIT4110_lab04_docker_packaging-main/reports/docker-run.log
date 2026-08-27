@@ -1,0 +1,63 @@
+﻿docker : INFO:     Started server process [8]
+At line:1 char:388
++ ... spect.json -Encoding utf8; docker logs fit4110-iot-lab04 2>&1 | Out-F ...
++                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (INFO:     Started server process  
+   [8]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:37426 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32802 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56572 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36374 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53876 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:43198 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48390 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51080 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45724 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44696 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49980 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49888 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60530 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38408 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60998 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56244 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47714 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52624 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58958 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60102 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57494 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48342 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33358 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59144 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:38366 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:32938 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49044 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45690 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50624 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:44264 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58224 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58224 - "POST /readings HTTP/1.1" 201 Created
+INFO:     172.17.0.1:58224 - "GET /readings/latest?device_id=ESP32-LAB-A01&limit=5 HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58224 - "GET /readings/R-20260822-0001 HTTP/1.1" 200 OK
+INFO:     172.17.0.1:58224 - "POST /readings HTTP/1.1" 401 Unauthorized
+INFO:     172.17.0.1:58224 - "POST /readings HTTP/1.1" 401 Unauthorized
+INFO:     172.17.0.1:58224 - "POST /readings HTTP/1.1" 422 Unprocessable Entity
+INFO:     172.17.0.1:58224 - "POST /readings HTTP/1.1" 422 Unprocessable Entity
+INFO:     172.17.0.1:58224 - "POST /readings HTTP/1.1" 201 Created
+INFO:     172.17.0.1:58224 - "POST /readings HTTP/1.1" 422 Unprocessable Entity
+INFO:     172.17.0.1:58224 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36360 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:40710 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:33856 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49478 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36684 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59446 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60488 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52814 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49736 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:36744 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58640 - "GET /health HTTP/1.1" 200 OK

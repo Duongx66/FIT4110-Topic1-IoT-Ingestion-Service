@@ -1,0 +1,19 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /service
+COPY requirements.txt /service/requirements.txt
+RUN pip install --no-cache-dir -r /service/requirements.txt
+COPY src/ai_service/main.py /service/main.py
+
+RUN useradd --system --create-home --home-dir /service aiuser \
+    && chown -R aiuser:aiuser /service
+USER aiuser
+
+EXPOSE 9000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:9000/health', timeout=3).read()" || exit 1
+
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "9000"]

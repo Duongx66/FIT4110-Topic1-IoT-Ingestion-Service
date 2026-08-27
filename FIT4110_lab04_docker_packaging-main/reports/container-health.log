@@ -1,0 +1,42 @@
+﻿docker : INFO:     Started server process [7]
+At line:1 char:113
++ ... 04_docker_packaging-main"; docker logs fit4110-iot-lab04 2>&1 | Out-F ...
++                                ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (INFO:     Started server process  
+   [7]:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:51044 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:42054 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:46186 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:41974 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:41974 - "POST /sensor-events HTTP/1.1" 202 Accepted
+INFO:     172.17.0.1:41974 - "GET /sensor-events/0196fb3d-4ad7-7d1e-9f49-5d5148d2babc HTTP/1.1" 200 OK
+INFO:     172.17.0.1:41974 - "GET /sensor-events/recent?metric=temperature&limit=10 HTTP/1.1" 200 OK
+INFO:     172.17.0.1:41974 - "POST /sensor-events HTTP/1.1" 422 Unprocessable Entity
+INFO:     172.17.0.1:41974 - "GET /sensor-events/recent?metric=temperature HTTP/1.1" 401 Unauthorized
+INFO:     172.17.0.1:41974 - "POST /sensor-events HTTP/1.1" 202 Accepted
+INFO:     127.0.0.1:53536 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:48040 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:47132 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52336 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56226 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53484 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:46294 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:45000 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59760 - "GET /health HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57508 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:52190 - "GET /health HTTP/1.1" 200 OK
+INFO:     172.17.0.1:52190 - "POST /readings HTTP/1.1" 201 Created
+INFO:     172.17.0.1:52190 - "GET /readings/latest?device_id=ESP32-LAB-A01&limit=5 HTTP/1.1" 200 OK
+INFO:     172.17.0.1:52190 - "GET /readings/R-20260822-0003 HTTP/1.1" 200 OK
+INFO:     172.17.0.1:52190 - "POST /readings HTTP/1.1" 401 Unauthorized
+INFO:     172.17.0.1:52190 - "POST /readings HTTP/1.1" 401 Unauthorized
+INFO:     172.17.0.1:52190 - "POST /readings HTTP/1.1" 422 Unprocessable Entity
+INFO:     172.17.0.1:52190 - "POST /readings HTTP/1.1" 422 Unprocessable Entity
+INFO:     172.17.0.1:52190 - "POST /readings HTTP/1.1" 201 Created
+INFO:     172.17.0.1:52190 - "POST /readings HTTP/1.1" 422 Unprocessable Entity
+INFO:     172.17.0.1:52190 - "GET /health HTTP/1.1" 200 OK

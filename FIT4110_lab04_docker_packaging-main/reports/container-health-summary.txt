@@ -1,0 +1,5 @@
+﻿Container: fit4110-iot-lab04
+Image: fit4110/iot-ingestion:lab04
+Status: running
+Health: healthy
+Host port: 8000
