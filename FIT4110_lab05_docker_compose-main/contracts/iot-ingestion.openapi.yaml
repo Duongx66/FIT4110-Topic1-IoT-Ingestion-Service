@@ -44,6 +44,9 @@ paths:
                     status: ok
                     service: iot-ingestion
                     version: 0.5.0
+                    mqtt_status: connected
+                    analytics_status: connected
+                    core_status: connected
 
   /ingest/raw:
     post:
@@ -431,7 +434,7 @@ components:
 
     HealthResponse:
       type: object
-      required: [status, service, version]
+      required: [status, service, version, mqtt_status, analytics_status, core_status]
       properties:
         status:
           type: string
@@ -443,6 +446,15 @@ components:
         version:
           type: string
           example: 0.5.0
+        mqtt_status:
+          type: string
+          example: connected
+        analytics_status:
+          type: string
+          example: connected
+        core_status:
+          type: string
+          example: connected
 
     ProblemDetails:
       type: object

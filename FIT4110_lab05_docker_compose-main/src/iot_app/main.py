@@ -32,11 +32,19 @@ MQTT_OUTPUT_TOPIC = os.getenv(
     "MQTT_OUTPUT_TOPIC", "smart-campus/events/sensor"
 )
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "iot-ingestion-lab05")
+ANALYTICS_ENABLED = os.getenv("ANALYTICS_ENABLED", "false").lower() == "true"
+ANALYTICS_HOST = os.getenv("ANALYTICS_HOST", "")
+ANALYTICS_PORT = int(os.getenv("ANALYTICS_PORT", "1883"))
+ANALYTICS_TOPIC = os.getenv("ANALYTICS_TOPIC", "iot.telemetry")
+ANALYTICS_CLIENT_ID = os.getenv("ANALYTICS_CLIENT_ID", "iot-ingestion-analytics")
 CORE_EVENTS_URL = os.getenv("CORE_EVENTS_URL", "")
 CORE_ENABLED = os.getenv("CORE_ENABLED", "false").lower() == "true"
 MQTT_STATUS = "disabled"
+ANALYTICS_STATUS = "disabled"
 CORE_STATUS = "disabled"
 MQTT_CLIENT: Optional[mqtt.Client] = None
+ANALYTICS_CLIENT: Optional[mqtt.Client] = None
+DEVICE_LAST_STATUS: Dict[str, str] = {}
 
 
 app = FastAPI(
@@ -80,6 +88,7 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     mqtt_status: str
+    analytics_status: str
     core_status: str
 
 
@@ -210,6 +219,7 @@ def on_mqtt_message(client: mqtt.Client, userdata: object, message: mqtt.MQTTMes
         RAW_EVENTS.append(sample.model_dump())
         EVENTS.append(normalized)
         client.publish(MQTT_OUTPUT_TOPIC, json.dumps(normalized), qos=1)
+        send_to_analytics(sample, normalized)
         send_to_core(sample)
         print(f"MQTT processed event {sample.event_id}", flush=True)
     except Exception as error:
@@ -248,6 +258,107 @@ def start_mqtt() -> None:
 def stop_mqtt() -> None:
     if MQTT_CLIENT is not None:
         MQTT_CLIENT.disconnect()
+    if ANALYTICS_CLIENT is not None:
+        ANALYTICS_CLIENT.disconnect()
+
+
+def analytics_zone(sample: RawEnvironmentSample) -> str:
+    room = DEVICE_REGISTRY.get(sample.device_id, {}).get("room", "UNKNOWN")
+    return f"ZONE-{room[0]}" if room and room != "UNKNOWN" else "ZONE-UNKNOWN"
+
+
+def send_to_analytics(sample: RawEnvironmentSample, normalized: Dict[str, object]) -> None:
+    global ANALYTICS_STATUS
+    if not ANALYTICS_ENABLED:
+        ANALYTICS_STATUS = "disabled"
+        return
+    if ANALYTICS_CLIENT is None:
+        ANALYTICS_STATUS = "not_connected"
+        return
+
+    device_id = core_device_id(sample.device_id)
+    if device_id is None:
+        ANALYTICS_STATUS = "skipped_invalid_device"
+        return
+    metric_values = [
+        ("temperature", sample.temperature_c, "celsius"),
+        ("humidity", sample.humidity_percent, "percent"),
+        ("smoke", sample.smoke_ppm, "ppm"),
+        ("motion", float(sample.motion_detected), "boolean"),
+    ]
+    metric, value, unit = next(
+        ((name, value, unit) for name, value, unit in metric_values if value is not None),
+        (None, None, None),
+    )
+    if metric is None:
+        ANALYTICS_STATUS = "skipped_no_metric"
+        return
+
+    envelope = {
+        "eventId": str(uuid.uuid4()),
+        "eventType": "telemetry.ingested",
+        "occurredAt": sample.timestamp,
+        "correlationId": str(uuid.uuid4()),
+        "source": "iot-ingestion",
+        "data": {
+            "deviceId": device_id,
+            "zoneId": analytics_zone(sample),
+            "metric": metric,
+            "value": value,
+            "unit": unit,
+            "sampledAt": sample.timestamp,
+        },
+    }
+    result = ANALYTICS_CLIENT.publish(ANALYTICS_TOPIC, json.dumps(envelope), qos=1)
+    if result.rc == mqtt.MQTT_ERR_SUCCESS:
+        ANALYTICS_STATUS = "connected"
+    else:
+        ANALYTICS_STATUS = f"publish_failed:{result.rc}"
+
+    current_status = str(normalized["status"]).upper()
+    previous_status = DEVICE_LAST_STATUS.get(device_id)
+    if previous_status and previous_status != current_status:
+        status_event = {
+            "eventId": str(uuid.uuid4()),
+            "eventType": "device.status.changed",
+            "occurredAt": sample.timestamp,
+            "correlationId": str(uuid.uuid4()),
+            "source": "iot-ingestion",
+            "data": {
+                "deviceId": device_id,
+                "zoneId": analytics_zone(sample),
+                "previousStatus": previous_status,
+                "currentStatus": current_status,
+                "changedAt": sample.timestamp,
+            },
+        }
+        ANALYTICS_CLIENT.publish(ANALYTICS_TOPIC, json.dumps(status_event), qos=1)
+    DEVICE_LAST_STATUS[device_id] = current_status
+
+
+def start_analytics() -> None:
+    global ANALYTICS_CLIENT, ANALYTICS_STATUS
+    if not ANALYTICS_ENABLED:
+        ANALYTICS_STATUS = "disabled"
+        return
+    if not ANALYTICS_HOST:
+        ANALYTICS_STATUS = "missing_configuration"
+        return
+    ANALYTICS_CLIENT = mqtt.Client(
+        mqtt.CallbackAPIVersion.VERSION2,
+        client_id=ANALYTICS_CLIENT_ID,
+        protocol=mqtt.MQTTv5,
+    )
+    try:
+        ANALYTICS_STATUS = "connecting"
+        ANALYTICS_CLIENT.connect(ANALYTICS_HOST, ANALYTICS_PORT, keepalive=60)
+        ANALYTICS_CLIENT.loop_start()
+        ANALYTICS_STATUS = "connected"
+        print(f"Analytics MQTT connected: {ANALYTICS_HOST}:{ANALYTICS_PORT}; topic={ANALYTICS_TOPIC}", flush=True)
+    except Exception as error:
+        ANALYTICS_STATUS = f"connection_error:{type(error).__name__}"
+        ANALYTICS_CLIENT = None
+        print(f"Analytics MQTT connection failed: {error}", flush=True)
 
 
 def send_to_core(sample: RawEnvironmentSample) -> None:
@@ -308,6 +419,7 @@ def send_to_core(sample: RawEnvironmentSample) -> None:
 @app.on_event("startup")
 def mqtt_startup() -> None:
     start_mqtt()
+    start_analytics()
 
 
 @app.on_event("shutdown")
@@ -480,6 +592,7 @@ def health() -> HealthResponse:
         service=SERVICE_NAME,
         version=SERVICE_VERSION,
         mqtt_status=MQTT_STATUS,
+        analytics_status=ANALYTICS_STATUS,
         core_status=CORE_STATUS,
     )
 

@@ -56,6 +56,14 @@ curl http://localhost:9000/health
 docker exec -it fit4110-db-lab05 pg_isready -U $POSTGRES_USER
 ```
 
+Khi bật cấu hình Analytics trong `.env`, API sẽ publish event envelope vào broker anonymous `192.168.1.51:1883`, topic `iot.telemetry`. Kiểm tra trạng thái:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Giá trị mong đợi là `analytics_status: connected`.
+
 API đọc registry thiết bị từ `data/IoT_device_registry.csv`. Gửi một raw environment sample để service validate, normalize và classify:
 
 ```bash
