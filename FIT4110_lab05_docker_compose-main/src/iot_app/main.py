@@ -2,6 +2,7 @@ import csv
 import json
 import os
 import threading
+import uuid
 from pathlib import Path
 from datetime import datetime, timezone
 from enum import Enum
@@ -13,6 +14,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 import paho.mqtt.client as mqtt
+import requests
 
 # Đọc biến môi trường với giá trị mặc định
 SERVICE_NAME = os.getenv("SERVICE_NAME", "iot-ingestion")
@@ -30,7 +32,10 @@ MQTT_OUTPUT_TOPIC = os.getenv(
     "MQTT_OUTPUT_TOPIC", "smart-campus/events/sensor"
 )
 MQTT_CLIENT_ID = os.getenv("MQTT_CLIENT_ID", "iot-ingestion-lab05")
+CORE_EVENTS_URL = os.getenv("CORE_EVENTS_URL", "")
+CORE_ENABLED = os.getenv("CORE_ENABLED", "false").lower() == "true"
 MQTT_STATUS = "disabled"
+CORE_STATUS = "disabled"
 MQTT_CLIENT: Optional[mqtt.Client] = None
 
 
@@ -75,6 +80,7 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     mqtt_status: str
+    core_status: str
 
 
 class SensorReadingCreate(BaseModel):
@@ -197,6 +203,7 @@ def on_mqtt_message(client: mqtt.Client, userdata: object, message: mqtt.MQTTMes
         RAW_EVENTS.append(sample.model_dump())
         EVENTS.append(normalized)
         client.publish(MQTT_OUTPUT_TOPIC, json.dumps(normalized), qos=1)
+        send_to_core(sample)
         print(f"MQTT processed event {sample.event_id}", flush=True)
     except Exception as error:
         print(f"MQTT rejected message: {error}", flush=True)
@@ -234,6 +241,50 @@ def start_mqtt() -> None:
 def stop_mqtt() -> None:
     if MQTT_CLIENT is not None:
         MQTT_CLIENT.disconnect()
+
+
+def send_to_core(sample: RawEnvironmentSample) -> None:
+    global CORE_STATUS
+    if not CORE_ENABLED:
+        CORE_STATUS = "disabled"
+        return
+    if not CORE_EVENTS_URL:
+        CORE_STATUS = "missing_configuration"
+        return
+
+    metric_values = [
+        ("temperature", sample.temperature_c, "celsius"),
+        ("humidity", sample.humidity_percent, "percent"),
+        ("smoke", sample.smoke_ppm, "ppm"),
+    ]
+    metric, value, unit = next(
+        ((name, value, unit) for name, value, unit in metric_values if value is not None),
+        (None, None, None),
+    )
+    if metric is None:
+        CORE_STATUS = "skipped_no_numeric_metric"
+        return
+
+    core_event = {
+        "eventType": "sensor.reading.created",
+        "eventId": str(uuid.uuid4()),
+        "occurredAt": sample.timestamp,
+        "correlationId": str(uuid.uuid4()),
+        "source": "iot-ingestion",
+        "deviceId": sample.device_id,
+        "metric": metric,
+        "value": value,
+        "unit": unit,
+        "locationId": sample.location or DEVICE_REGISTRY.get(sample.device_id, {}).get("location"),
+    }
+    try:
+        response = requests.post(CORE_EVENTS_URL, json=core_event, timeout=5)
+        response.raise_for_status()
+        CORE_STATUS = "connected"
+        print(f"Core accepted event {core_event['eventId']}: {response.status_code}", flush=True)
+    except requests.RequestException as error:
+        CORE_STATUS = f"error:{type(error).__name__}"
+        print(f"Core event delivery failed: {error}", flush=True)
 
 
 @app.on_event("startup")
@@ -411,6 +462,7 @@ def health() -> HealthResponse:
         service=SERVICE_NAME,
         version=SERVICE_VERSION,
         mqtt_status=MQTT_STATUS,
+        core_status=CORE_STATUS,
     )
 
 
